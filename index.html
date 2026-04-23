@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="旅日記">
+<title>旅日記</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --ink:#2b2420;
+  --ink-soft:#5c4f47;
+  --paper:#f4ede0;
+  --paper-warm:#ede3d0;
+  --rule:#c9b893;
+  --accent:#9c3a2b;
+  --accent-soft:#c27a4a;
+  --gold:#a6812a;
+  --leaf:#5a6b3a;
+  --shadow:rgba(62,44,28,.18);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:"Hiragino Mincho ProN","游明朝","Yu Mincho",serif;
+  color:var(--ink);
+  background:
+    radial-gradient(ellipse at top left, #f8f2e4 0%, transparent 60%),
+    radial-gradient(ellipse at bottom right, #ecdfc5 0%, transparent 55%),
+    var(--paper);
+  background-attachment:fixed;
+  line-height:1.65;
+  font-size:15px;
+  display:flex;flex-direction:column;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(120,90,50,.025) 0 1px, transparent 1px 3px),
+    radial-gradient(circle at 20% 30%, rgba(120,80,40,.04) 0 1px, transparent 2px),
+    radial-gradient(circle at 70% 60%, rgba(120,80,40,.03) 0 1px, transparent 2px);
+  background-size:100% 3px, 40px 40px, 55px 55px;
+  mix-blend-mode:multiply;
+}
+
+header{
+  padding:14px 18px 10px;
+  border-bottom:1px double var(--rule);
+  position:relative;z-index:2;
+  background:linear-gradient(to bottom, rgba(244,237,224,.95), rgba(244,237,224,.85));
+  backdrop-filter:blur(6px);
+}
+header h1{
+  font-family:"Hiragino Mincho ProN",serif;
+  font-size:22px;font-weight:600;
+  letter-spacing:.15em;
+  display:flex;align-items:baseline;gap:10px;
+}
+header h1::before{content:"❖";color:var(--accent);font-size:14px}
+header .sub{font-size:11px;color:var(--ink-soft);letter-spacing:.3em;margin-top:2px}
+
+nav.tabs{
+  display:flex;gap:0;
+  padding:0 10px;
+  border-bottom:1px solid var(--rule);
+  background:var(--paper-warm);
+  position:relative;z-index:2;
+}
+nav.tabs button{
+  flex:1;
+  padding:11px 4px;
+  background:transparent;border:none;
+  font-family:inherit;font-size:13px;
+  color:var(--ink-soft);
+  letter-spacing:.2em;
+  cursor:pointer;
+  border-bottom:2px solid transparent;
+  transition:all .2s;
+  position:relative;
+}
+nav.tabs button.active{
+  color:var(--accent);
+  border-bottom-color:var(--accent);
+  font-weight:600;
+}
+nav.tabs button:not(:last-child)::after{
+  content:"";position:absolute;right:0;top:25%;bottom:25%;
+  width:1px;background:var(--rule);
+}
+
+main{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  position:relative;z-index:2;
+  -webkit-overflow-scrolling:touch;
+}
+.view{display:none;padding:16px;min-height:100%}
+.view.active{display:block}
+
+/* ---- 旅行一覧 ---- */
+.trip-list{display:flex;flex-direction:column;gap:14px}
+.trip-card{
+  background:linear-gradient(135deg, #fbf6e9 0%, #f0e5cc 100%);
+  border:1px solid var(--rule);
+  border-radius:2px;
+  padding:14px 16px;
+  position:relative;
+  box-shadow:2px 3px 0 var(--shadow), 0 0 0 1px rgba(255,255,255,.4) inset;
+  cursor:pointer;
+  transition:transform .15s, box-shadow .15s;
+}
+.trip-card:active{transform:translate(1px,1px);box-shadow:1px 2px 0 var(--shadow)}
+.trip-card::before{
+  content:"";position:absolute;top:6px;right:8px;bottom:6px;
+  width:3px;
+  background:repeating-linear-gradient(to bottom,var(--accent) 0 6px,transparent 6px 10px);
+  opacity:.6;
+}
+.trip-card h3{
+  font-size:17px;font-weight:600;
+  letter-spacing:.08em;margin-bottom:6px;
+  padding-right:18px;
+}
+.trip-card .date{
+  font-size:11px;color:var(--ink-soft);
+  letter-spacing:.15em;
+  font-family:"Courier New",monospace;
+}
+.trip-card .meta{
+  display:flex;gap:14px;margin-top:8px;
+  font-size:12px;color:var(--ink-soft);
+  padding-top:8px;border-top:1px dashed var(--rule);
+}
+.trip-card .meta span{display:flex;align-items:center;gap:4px}
+
+.empty{
+  text-align:center;padding:60px 20px;
+  color:var(--ink-soft);
+  font-size:14px;letter-spacing:.2em;
+}
+.empty::before{
+  content:"❦";display:block;font-size:48px;color:var(--rule);
+  margin-bottom:14px;
+}
+
+/* ---- ボタン ---- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:10px 18px;
+  background:var(--ink);color:var(--paper);
+  border:none;border-radius:2px;
+  font-family:inherit;font-size:13px;
+  letter-spacing:.2em;
+  cursor:pointer;
+  transition:all .15s;
+  box-shadow:2px 2px 0 var(--accent);
+}
+.btn:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--accent)}
+.btn.accent{background:var(--accent);box-shadow:2px 2px 0 var(--gold)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink);box-shadow:none}
+.btn.small{padding:6px 12px;font-size:12px;letter-spacing:.15em}
+.btn.danger{background:#6b2018;box-shadow:2px 2px 0 #8a3b2f}
+.btn-full{width:100%}
+
+.fab{
+  position:fixed;right:18px;bottom:20px;z-index:10;
+  width:56px;height:56px;border-radius:50%;
+  background:var(--accent);color:#fff;
+  border:none;font-size:28px;
+  box-shadow:0 4px 14px rgba(156,58,43,.4), 0 0 0 3px var(--paper), 0 0 0 4px var(--accent);
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-family:serif;
+}
+.fab:active{transform:scale(.95)}
+
+/* ---- 詳細ビュー ---- */
+.detail-header{
+  margin-bottom:16px;padding-bottom:12px;
+  border-bottom:1px double var(--rule);
+}
+.detail-header .back{
+  display:inline-block;font-size:12px;color:var(--accent);
+  letter-spacing:.2em;margin-bottom:8px;cursor:pointer;
+  text-decoration:none;
+}
+.detail-header h2{
+  font-size:22px;letter-spacing:.1em;
+  font-weight:600;margin-bottom:4px;
+}
+.detail-header .sub{
+  font-size:12px;color:var(--ink-soft);
+  letter-spacing:.2em;font-family:"Courier New",monospace;
+}
+.detail-header .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+.section{
+  margin-bottom:24px;
+  background:rgba(255,253,247,.5);
+  border:1px solid var(--rule);
+  border-radius:2px;
+  overflow:hidden;
+}
+.section-head{
+  padding:10px 14px;
+  background:linear-gradient(to right, var(--paper-warm), transparent);
+  border-bottom:1px solid var(--rule);
+  font-size:12px;letter-spacing:.3em;
+  color:var(--accent);font-weight:600;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.section-head::before{
+  content:"";display:inline-block;width:16px;height:1px;
+  background:var(--accent);margin-right:8px;vertical-align:middle;
+}
+.section-body{padding:14px}
+
+/* ---- 地図 ---- */
+#map{
+  height:320px;width:100%;
+  border-radius:2px;
+  filter:sepia(.15) saturate(.9);
+}
+.leaflet-container{font-family:inherit;background:#e8dcc2}
+.leaflet-popup-content-wrapper{
+  background:var(--paper);border-radius:2px;
+  box-shadow:3px 3px 0 var(--shadow);
+  border:1px solid var(--rule);
+}
+.leaflet-popup-tip{background:var(--paper);border:1px solid var(--rule)}
+.leaflet-popup-content{margin:10px 12px;font-size:13px;color:var(--ink)}
+.leaflet-popup-content b{color:var(--accent);letter-spacing:.05em}
+.leaflet-popup-content small{color:var(--ink-soft);font-size:11px}
+
+.place-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.place-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;
+  background:#fbf7ec;border:1px solid var(--rule);
+  border-radius:2px;font-size:13px;
+}
+.place-item .num{
+  width:22px;height:22px;flex-shrink:0;
+  background:var(--accent);color:#fff;
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:600;
+  font-family:"Courier New",monospace;
+}
+.place-item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.place-item .del{
+  background:none;border:none;color:var(--ink-soft);
+  cursor:pointer;font-size:14px;padding:4px 6px;
+}
+
+/* ---- メモ ---- */
+.memo-area{
+  width:100%;min-height:140px;
+  padding:14px;
+  background:
+    linear-gradient(transparent 0 27px, var(--rule) 27px 28px, transparent 28px),
+    repeating-linear-gradient(transparent 0 27px, rgba(201,184,147,.3) 27px 28px);
+  background-size:100% 28px;
+  line-height:28px;
+  border:1px solid var(--rule);
+  border-radius:2px;
+  font-family:"Hiragino Maru Gothic ProN","Hiragino Mincho ProN",serif;
+  font-size:15px;color:var(--ink);
+  resize:vertical;
+  outline:none;
+}
+.memo-area:focus{background-color:#fbf7ec}
+
+/* ---- 費用 ---- */
+.expense-summary{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  gap:1px;background:var(--rule);
+  border:1px solid var(--rule);
+  margin-bottom:14px;
+}
+.expense-summary .cell{
+  background:#fbf7ec;padding:10px;text-align:center;
+}
+.expense-summary .cat{
+  font-size:11px;color:var(--ink-soft);
+  letter-spacing:.15em;margin-bottom:3px;
+}
+.expense-summary .amt{
+  font-family:"Courier New",monospace;
+  font-size:15px;font-weight:600;color:var(--ink);
+}
+.expense-summary .total{background:var(--ink);color:var(--paper)}
+.expense-summary .total .cat{color:var(--paper-warm)}
+.expense-summary .total .amt{color:var(--paper);font-size:17px}
+
+.expense-list{display:flex;flex-direction:column;gap:6px}
+.expense-row{
+  display:grid;grid-template-columns:auto 1fr auto auto;
+  gap:10px;align-items:center;
+  padding:8px 10px;
+  background:#fbf7ec;
+  border-left:3px solid var(--accent);
+  font-size:13px;
+}
+.expense-row .date{
+  font-family:"Courier New",monospace;
+  font-size:11px;color:var(--ink-soft);
+}
+.expense-row .cat-badge{
+  display:inline-block;font-size:10px;
+  padding:2px 6px;background:var(--paper-warm);
+  border:1px solid var(--rule);border-radius:2px;
+  letter-spacing:.1em;margin-right:6px;
+}
+.expense-row .amt{
+  font-family:"Courier New",monospace;
+  font-weight:600;white-space:nowrap;
+}
+.expense-row .del{
+  background:none;border:none;color:var(--ink-soft);
+  cursor:pointer;padding:2px 4px;
+}
+
+/* ---- 入力フォーム ---- */
+.modal{
+  display:none;position:fixed;inset:0;z-index:100;
+  background:rgba(43,36,32,.5);
+  align-items:flex-end;justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.modal.show{display:flex;animation:fadeIn .2s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-content{
+  width:100%;max-width:500px;
+  background:var(--paper);
+  border-top:3px double var(--rule);
+  border-radius:8px 8px 0 0;
+  padding:18px;
+  max-height:85vh;overflow-y:auto;
+  animation:slideUp .25s cubic-bezier(.2,.9,.3,1);
+}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal h3{
+  font-size:16px;letter-spacing:.2em;
+  color:var(--accent);font-weight:600;
+  margin-bottom:14px;padding-bottom:8px;
+  border-bottom:1px dashed var(--rule);
+}
+.field{margin-bottom:12px}
+.field label{
+  display:block;font-size:11px;
+  letter-spacing:.2em;color:var(--ink-soft);
+  margin-bottom:4px;
+}
+.field input,.field textarea,.field select{
+  width:100%;padding:9px 10px;
+  background:#fbf7ec;
+  border:1px solid var(--rule);
+  border-radius:2px;
+  font-family:inherit;font-size:15px;
+  color:var(--ink);
+  outline:none;
+  -webkit-appearance:none;
+}
+.field input:focus,.field textarea:focus,.field select:focus{
+  border-color:var(--accent);
+  background:#fff;
+}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-actions{
+  display:flex;gap:10px;margin-top:16px;
+  padding-top:12px;border-top:1px dashed var(--rule);
+}
+.modal-actions .btn{flex:1}
+
+/* ---- 宿泊 ---- */
+.lodging-list{display:flex;flex-direction:column;gap:12px}
+.lodging-card{
+  background:
+    linear-gradient(135deg, rgba(255,253,247,.6), rgba(237,227,208,.4));
+  border:1px solid var(--rule);
+  border-left:4px solid var(--accent-soft);
+  border-radius:2px;
+  padding:12px 14px;
+  position:relative;
+  box-shadow:1px 2px 0 var(--shadow);
+}
+.lodging-card .head{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  gap:10px;margin-bottom:6px;
+}
+.lodging-card .name{
+  font-size:15px;font-weight:600;
+  letter-spacing:.05em;color:var(--ink);
+  flex:1;
+}
+.lodging-card .name::before{
+  content:"宿";display:inline-block;
+  font-size:10px;padding:2px 5px;margin-right:6px;
+  background:var(--accent-soft);color:#fff;
+  border-radius:2px;letter-spacing:.1em;
+  vertical-align:middle;
+}
+.lodging-card .price{
+  font-family:"Courier New",monospace;
+  font-size:14px;font-weight:600;
+  color:var(--accent);white-space:nowrap;
+}
+.lodging-card .stay{
+  font-size:11px;color:var(--ink-soft);
+  letter-spacing:.15em;
+  font-family:"Courier New",monospace;
+  margin-bottom:8px;
+}
+.lodging-card .access{
+  font-size:13px;color:var(--ink);
+  padding:8px 10px;margin-top:8px;
+  background:rgba(251,247,236,.8);
+  border:1px dashed var(--rule);
+  border-radius:2px;
+  white-space:pre-wrap;word-break:break-word;
+  line-height:1.7;
+}
+.lodging-card .access::before{
+  content:"▸ 行き方";
+  display:block;font-size:10px;
+  color:var(--ink-soft);letter-spacing:.25em;
+  margin-bottom:4px;font-family:"Hiragino Mincho ProN",serif;
+}
+.lodging-card .actions{
+  display:flex;gap:8px;margin-top:10px;
+  padding-top:8px;border-top:1px dashed var(--rule);
+}
+.lodging-card .actions button{
+  background:none;border:none;
+  font-family:inherit;font-size:11px;
+  color:var(--ink-soft);cursor:pointer;
+  letter-spacing:.15em;padding:2px 6px;
+}
+.lodging-card .actions button:hover{color:var(--accent)}
+.lodging-card .notes{
+  font-size:12px;color:var(--ink-soft);
+  margin-top:6px;font-style:italic;
+}
+
+/* ---- カテゴリ色 ---- */
+.cat-宿{border-left-color:#6b6ba3}
+.cat-食事{border-left-color:#c27a4a}
+.cat-交通{border-left-color:#5a6b3a}
+.cat-観光{border-left-color:var(--accent)}
+.cat-買物{border-left-color:var(--gold)}
+.cat-その他{border-left-color:var(--ink-soft)}
+
+/* ---- カスタムマーカー ---- */
+.custom-pin{
+  background:var(--accent);color:#fff;
+  border-radius:50% 50% 50% 0;
+  width:28px;height:28px;
+  transform:rotate(-45deg);
+  display:flex;align-items:center;justify-content:center;
+  border:2px solid #fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.3);
+  font-weight:600;font-size:12px;
+  font-family:"Courier New",monospace;
+}
+.custom-pin span{transform:rotate(45deg)}
+
+/* ---- 検索 ---- */
+.search-result{
+  background:#fbf7ec;border:1px solid var(--rule);
+  border-radius:2px;max-height:180px;overflow-y:auto;
+  margin-top:4px;
+}
+.search-result-item{
+  padding:8px 10px;font-size:13px;
+  border-bottom:1px dashed var(--rule);
+  cursor:pointer;
+}
+.search-result-item:last-child{border-bottom:none}
+.search-result-item:hover,.search-result-item:active{background:var(--paper-warm)}
+.search-result-item small{display:block;color:var(--ink-soft);font-size:11px;margin-top:2px}
+.search-loading{padding:8px;text-align:center;color:var(--ink-soft);font-size:12px}
+
+/* ---- データ管理 ---- */
+.data-actions{display:flex;flex-direction:column;gap:10px;padding:10px 0}
+
+@media (min-width:768px){
+  header h1{font-size:26px}
+  .view{padding:22px 28px;max-width:900px;margin:0 auto}
+  #map{height:420px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>旅日記</h1>
+  <div class="sub">TRAVEL  RECORDS</div>
+</header>
+
+<nav class="tabs">
+  <button class="active" data-tab="trips">旅の記録</button>
+  <button data-tab="data">設定</button>
+</nav>
+
+<main>
+
+  <!-- 旅行一覧ビュー -->
+  <section class="view active" id="view-trips">
+    <div id="trip-list-container"></div>
+  </section>
+
+  <!-- 旅行詳細ビュー -->
+  <section class="view" id="view-detail">
+    <div class="detail-header">
+      <a class="back" id="back-to-list">← 一覧に戻る</a>
+      <h2 id="detail-title"></h2>
+      <div class="sub" id="detail-dates"></div>
+      <div class="actions">
+        <button class="btn small ghost" id="btn-edit-trip">情報を編集</button>
+        <button class="btn small danger" id="btn-delete-trip">この旅を削除</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <span>地図・訪問地</span>
+        <button class="btn small accent" id="btn-add-place">＋ ピン追加</button>
+      </div>
+      <div class="section-body">
+        <div id="map"></div>
+        <div class="place-list" id="place-list"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <span>宿泊・行き方</span>
+        <button class="btn small accent" id="btn-add-lodging">＋ 宿を追加</button>
+      </div>
+      <div class="section-body">
+        <div class="lodging-list" id="lodging-list"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><span>日記・メモ</span><span id="memo-status" style="font-size:10px;color:var(--ink-soft)"></span></div>
+      <div class="section-body">
+        <textarea class="memo-area" id="memo-area" placeholder="この旅のできごと、感じたこと、また行きたい場所..."></textarea>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <span>費用記録</span>
+        <button class="btn small accent" id="btn-add-expense">＋ 支出追加</button>
+      </div>
+      <div class="section-body">
+        <div class="expense-summary" id="expense-summary"></div>
+        <div class="expense-list" id="expense-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 設定ビュー -->
+  <section class="view" id="view-data">
+    <div class="section">
+      <div class="section-head"><span>データ管理</span></div>
+      <div class="section-body">
+        <p style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;line-height:1.8">
+          データはこの端末に保存されています。バックアップや別端末への移行にエクスポート/インポートをご利用ください。
+        </p>
+        <div class="data-actions">
+          <button class="btn btn-full" id="btn-export">JSONをエクスポート</button>
+          <button class="btn btn-full ghost" id="btn-import">JSONをインポート</button>
+          <input type="file" id="import-file" accept=".json" style="display:none">
+        </div>
+        <p style="font-size:11px;color:var(--ink-soft);margin-top:14px;letter-spacing:.1em">
+          旅行数: <span id="stat-trips">0</span> ／ ピン合計: <span id="stat-places">0</span> ／ 宿泊先: <span id="stat-lodgings">0</span> ／ 支出件数: <span id="stat-expenses">0</span>
+        </p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<button class="fab" id="fab" title="新しい旅を追加">＋</button>
+
+<!-- モーダル群 -->
+<div class="modal" id="modal-trip">
+  <div class="modal-content">
+    <h3 id="modal-trip-title">新しい旅</h3>
+    <div class="field">
+      <label>旅のタイトル</label>
+      <input type="text" id="trip-title" placeholder="例: 京都の春">
+    </div>
+    <div class="field-row">
+      <div class="field"><label>出発日</label><input type="date" id="trip-start"></div>
+      <div class="field"><label>帰着日</label><input type="date" id="trip-end"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" data-close>キャンセル</button>
+      <button class="btn accent" id="save-trip">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-place">
+  <div class="modal-content">
+    <h3>訪問地を追加</h3>
+    <div class="field">
+      <label>地名を検索</label>
+      <input type="text" id="place-search" placeholder="例: 清水寺">
+      <div class="search-result" id="search-result" style="display:none"></div>
+    </div>
+    <div class="field">
+      <label>地名 / メモ</label>
+      <input type="text" id="place-name" placeholder="表示名">
+    </div>
+    <div class="field-row">
+      <div class="field"><label>緯度</label><input type="number" step="0.000001" id="place-lat"></div>
+      <div class="field"><label>経度</label><input type="number" step="0.000001" id="place-lng"></div>
+    </div>
+    <p style="font-size:11px;color:var(--ink-soft);letter-spacing:.1em">検索結果を選ぶか、地図を長押しして位置を指定できます</p>
+    <div class="modal-actions">
+      <button class="btn ghost" data-close>キャンセル</button>
+      <button class="btn accent" id="save-place">追加</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-lodging">
+  <div class="modal-content">
+    <h3 id="modal-lodging-title">宿を追加</h3>
+    <div class="field">
+      <label>宿名</label>
+      <input type="text" id="lodging-name" placeholder="例: ○○旅館">
+    </div>
+    <div class="field-row">
+      <div class="field"><label>チェックイン</label><input type="date" id="lodging-checkin"></div>
+      <div class="field"><label>チェックアウト</label><input type="date" id="lodging-checkout"></div>
+    </div>
+    <div class="field">
+      <label>料金 (円)</label>
+      <input type="number" id="lodging-price" inputmode="numeric" placeholder="0">
+    </div>
+    <div class="field">
+      <label>行き方 / アクセス</label>
+      <textarea id="lodging-access" rows="4" placeholder="例: 姫路駅から新幹線で京都駅、市バス206系統で清水道下車、徒歩5分" style="width:100%;padding:9px 10px;background:#fbf7ec;border:1px solid var(--rule);border-radius:2px;font-family:inherit;font-size:14px;color:var(--ink);outline:none;resize:vertical;line-height:1.7"></textarea>
+    </div>
+    <div class="field">
+      <label>メモ (任意)</label>
+      <input type="text" id="lodging-notes" placeholder="例: 朝夕食付、駐車場あり">
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="lodging-add-to-expense" style="width:auto;margin:0">
+        <span>費用記録にも「宿」カテゴリで追加する</span>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" data-close>キャンセル</button>
+      <button class="btn accent" id="save-lodging">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-expense">
+  <div class="modal-content">
+    <h3>支出を追加</h3>
+    <div class="field-row">
+      <div class="field">
+        <label>日付</label>
+        <input type="date" id="exp-date">
+      </div>
+      <div class="field">
+        <label>カテゴリ</label>
+        <select id="exp-category">
+          <option>宿</option>
+          <option>食事</option>
+          <option>交通</option>
+          <option>観光</option>
+          <option>買物</option>
+          <option>その他</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>内容</label>
+      <input type="text" id="exp-note" placeholder="例: 旅館 朝夕食付">
+    </div>
+    <div class="field">
+      <label>金額 (円)</label>
+      <input type="number" id="exp-amount" inputmode="numeric" placeholder="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" data-close>キャンセル</button>
+      <button class="btn accent" id="save-expense">追加</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ===== データ層 =====
+const STORAGE_KEY = 'travelDiaryData_v1';
+let state = {
+  trips: [],
+  currentTripId: null,
+};
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const data = JSON.parse(raw);
+      state.trips = data.trips || [];
+    }
+  }catch(e){ console.error('load failed', e); }
+}
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({trips: state.trips}));
+}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function currentTrip(){ return state.trips.find(t => t.id === state.currentTripId); }
+function fmtDate(s){
+  if(!s) return '';
+  const d = new Date(s);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmtYen(n){ return '¥' + (n||0).toLocaleString('ja-JP'); }
+
+// ===== ビュー切替 =====
+function showView(id){
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+  const tabBtn = document.querySelector(`nav.tabs button[data-tab="${id}"]`);
+  if(tabBtn) tabBtn.classList.add('active');
+  document.querySelector('main').scrollTop = 0;
+}
+
+document.querySelectorAll('nav.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    state.currentTripId = null;
+    showView(tab);
+    if(tab === 'trips') renderTripList();
+    if(tab === 'data') renderStats();
+  });
+});
+
+// ===== 一覧表示 =====
+function renderTripList(){
+  const box = document.getElementById('trip-list-container');
+  if(state.trips.length === 0){
+    box.innerHTML = `<div class="empty">まだ旅の記録はありません<br><br>右下の ＋ から最初の旅を<br>書き留めてみてください</div>`;
+    return;
+  }
+  const sorted = [...state.trips].sort((a,b) => (b.startDate||'').localeCompare(a.startDate||''));
+  box.innerHTML = `<div class="trip-list">` + sorted.map(t => {
+    const totalExp = (t.expenses||[]).reduce((s,e) => s + (e.amount||0), 0);
+    const placeCount = (t.places||[]).length;
+    const lodgingCount = (t.lodgings||[]).length;
+    const dateStr = t.startDate ? `${fmtDate(t.startDate)}${t.endDate && t.endDate !== t.startDate ? ' — ' + fmtDate(t.endDate) : ''}` : '日付未設定';
+    return `
+      <div class="trip-card" data-id="${t.id}">
+        <h3>${escapeHtml(t.title || '無題の旅')}</h3>
+        <div class="date">${dateStr}</div>
+        <div class="meta">
+          <span>📍 ${placeCount}箇所</span>
+          <span>🏯 ${lodgingCount}泊先</span>
+          <span>💴 ${fmtYen(totalExp)}</span>
+        </div>
+      </div>`;
+  }).join('') + `</div>`;
+
+  box.querySelectorAll('.trip-card').forEach(card => {
+    card.addEventListener('click', () => openTrip(card.dataset.id));
+  });
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ===== 旅行詳細 =====
+let mapInstance = null;
+let markerLayer = null;
+
+function openTrip(id){
+  state.currentTripId = id;
+  const trip = currentTrip();
+  if(!trip) return;
+  document.getElementById('detail-title').textContent = trip.title || '無題の旅';
+  const dateStr = trip.startDate ? `${fmtDate(trip.startDate)}${trip.endDate && trip.endDate !== trip.startDate ? ' — ' + fmtDate(trip.endDate) : ''}` : '';
+  document.getElementById('detail-dates').textContent = dateStr;
+  showView('detail');
+  renderMap();
+  renderPlaces();
+  renderLodgings();
+  renderMemo();
+  renderExpenses();
+}
+
+document.getElementById('back-to-list').addEventListener('click', () => {
+  state.currentTripId = null;
+  showView('trips');
+  renderTripList();
+});
+
+// ----- 地図 -----
+function renderMap(){
+  const trip = currentTrip();
+  if(!trip) return;
+  const container = document.getElementById('map');
+  // 再初期化
+  if(mapInstance){ mapInstance.remove(); mapInstance = null; }
+  container.innerHTML = '';
+
+  const places = trip.places || [];
+  const defaultCenter = [35.0116, 135.7681]; // 京都
+  const center = places.length ? [places[0].lat, places[0].lng] : defaultCenter;
+
+  mapInstance = L.map('map', {scrollWheelZoom:true, tap:true}).setView(center, places.length ? 10 : 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap',
+    maxZoom: 18
+  }).addTo(mapInstance);
+
+  markerLayer = L.layerGroup().addTo(mapInstance);
+
+  places.forEach((p, i) => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="custom-pin"><span>${i+1}</span></div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 28],
+      popupAnchor: [0, -28]
+    });
+    L.marker([p.lat, p.lng], {icon}).addTo(markerLayer)
+      .bindPopup(`<b>${escapeHtml(p.name)}</b><br><small>${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</small>`);
+  });
+
+  // 全ピン収まるよう自動調整
+  if(places.length > 1){
+    const bounds = L.latLngBounds(places.map(p => [p.lat, p.lng]));
+    mapInstance.fitBounds(bounds, {padding:[30,30], maxZoom:12});
+  }
+
+  // 長押しで追加
+  let pressTimer = null;
+  mapInstance.on('mousedown touchstart', (e) => {
+    pressTimer = setTimeout(() => {
+      document.getElementById('place-lat').value = e.latlng.lat.toFixed(6);
+      document.getElementById('place-lng').value = e.latlng.lng.toFixed(6);
+      document.getElementById('place-name').value = '';
+      document.getElementById('place-search').value = '';
+      document.getElementById('search-result').style.display = 'none';
+      openModal('modal-place');
+    }, 600);
+  });
+  mapInstance.on('mouseup touchend touchmove mousemove dragstart', () => {
+    if(pressTimer){ clearTimeout(pressTimer); pressTimer = null; }
+  });
+}
+
+function renderPlaces(){
+  const trip = currentTrip();
+  const list = document.getElementById('place-list');
+  if(!trip || !(trip.places||[]).length){
+    list.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);padding:6px 0">まだ訪問地がありません</div>`;
+    return;
+  }
+  list.innerHTML = trip.places.map((p, i) => `
+    <div class="place-item">
+      <div class="num">${i+1}</div>
+      <div class="name">${escapeHtml(p.name)}</div>
+      <button class="del" data-idx="${i}" title="削除">✕</button>
+    </div>`).join('');
+  list.querySelectorAll('.del').forEach(b => b.addEventListener('click', (e) => {
+    const i = parseInt(e.currentTarget.dataset.idx);
+    if(!confirm('このピンを削除しますか？')) return;
+    trip.places.splice(i, 1);
+    saveState();
+    renderMap();
+    renderPlaces();
+  }));
+}
+
+// ----- 宿泊 -----
+function renderLodgings(){
+  const trip = currentTrip();
+  const list = document.getElementById('lodging-list');
+  if(!trip || !(trip.lodgings||[]).length){
+    list.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);padding:6px 0">まだ宿泊先がありません</div>`;
+    return;
+  }
+  // チェックイン順でソート
+  const sorted = [...trip.lodgings].sort((a,b) => (a.checkIn||'').localeCompare(b.checkIn||''));
+  list.innerHTML = sorted.map(l => {
+    const stayStr = l.checkIn
+      ? `${fmtDate(l.checkIn)}${l.checkOut && l.checkOut !== l.checkIn ? ' → ' + fmtDate(l.checkOut) : ''}`
+      : '日程未設定';
+    return `
+      <div class="lodging-card">
+        <div class="head">
+          <div class="name">${escapeHtml(l.name || '(未入力)')}</div>
+          <div class="price">${fmtYen(l.price||0)}</div>
+        </div>
+        <div class="stay">${stayStr}</div>
+        ${l.notes ? `<div class="notes">${escapeHtml(l.notes)}</div>` : ''}
+        ${l.access ? `<div class="access">${escapeHtml(l.access)}</div>` : ''}
+        <div class="actions">
+          <button data-edit="${l.id}">編集</button>
+          <button data-del="${l.id}">削除</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', (e) => {
+    openLodgingModal(e.currentTarget.dataset.edit);
+  }));
+  list.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', (e) => {
+    const id = e.currentTarget.dataset.del;
+    if(!confirm('この宿泊記録を削除しますか？')) return;
+    trip.lodgings = trip.lodgings.filter(x => x.id !== id);
+    saveState();
+    renderLodgings();
+    renderTripList();
+  }));
+}
+
+let editingLodgingId = null;
+function openLodgingModal(id){
+  const trip = currentTrip();
+  if(!trip) return;
+  trip.lodgings = trip.lodgings || [];
+  editingLodgingId = id || null;
+  const l = id ? trip.lodgings.find(x => x.id === id) : null;
+  document.getElementById('modal-lodging-title').textContent = l ? '宿を編集' : '宿を追加';
+  document.getElementById('lodging-name').value = l ? (l.name||'') : '';
+  document.getElementById('lodging-checkin').value = l ? (l.checkIn||'') : (trip.startDate || '');
+  document.getElementById('lodging-checkout').value = l ? (l.checkOut||'') : (trip.endDate || '');
+  document.getElementById('lodging-price').value = l ? (l.price||'') : '';
+  document.getElementById('lodging-access').value = l ? (l.access||'') : '';
+  document.getElementById('lodging-notes').value = l ? (l.notes||'') : '';
+  // 編集時は費用連動チェックを外す(二重登録防止)
+  const chk = document.getElementById('lodging-add-to-expense');
+  chk.checked = false;
+  chk.parentElement.parentElement.style.display = l ? 'none' : 'block';
+  openModal('modal-lodging');
+}
+
+document.getElementById('btn-add-lodging').addEventListener('click', () => openLodgingModal(null));
+
+document.getElementById('save-lodging').addEventListener('click', () => {
+  const trip = currentTrip();
+  if(!trip) return;
+  const name = document.getElementById('lodging-name').value.trim();
+  const checkIn = document.getElementById('lodging-checkin').value;
+  const checkOut = document.getElementById('lodging-checkout').value;
+  const priceRaw = document.getElementById('lodging-price').value;
+  const price = priceRaw === '' ? 0 : parseInt(priceRaw);
+  const access = document.getElementById('lodging-access').value.trim();
+  const notes = document.getElementById('lodging-notes').value.trim();
+  const addToExp = document.getElementById('lodging-add-to-expense').checked;
+
+  if(!name){ alert('宿名を入力してください'); return; }
+  if(isNaN(price) || price < 0){ alert('料金を正しく入力してください'); return; }
+
+  trip.lodgings = trip.lodgings || [];
+  if(editingLodgingId){
+    const l = trip.lodgings.find(x => x.id === editingLodgingId);
+    if(l){
+      l.name = name; l.checkIn = checkIn; l.checkOut = checkOut;
+      l.price = price; l.access = access; l.notes = notes;
+    }
+  }else{
+    trip.lodgings.push({
+      id: uid(), name, checkIn, checkOut, price, access, notes
+    });
+    // 費用記録にも追加
+    if(addToExp && price > 0){
+      trip.expenses = trip.expenses || [];
+      trip.expenses.push({
+        id: uid(),
+        date: checkIn || trip.startDate || new Date().toISOString().slice(0,10),
+        category: '宿',
+        note: name + (notes ? ' (' + notes + ')' : ''),
+        amount: price
+      });
+    }
+  }
+  saveState();
+  closeModal('modal-lodging');
+  renderLodgings();
+  renderExpenses();
+  renderTripList();
+});
+
+// ----- メモ -----
+let memoTimer = null;
+function renderMemo(){
+  const trip = currentTrip();
+  const area = document.getElementById('memo-area');
+  area.value = trip.memo || '';
+}
+document.getElementById('memo-area').addEventListener('input', (e) => {
+  const trip = currentTrip();
+  if(!trip) return;
+  trip.memo = e.target.value;
+  const status = document.getElementById('memo-status');
+  status.textContent = '保存中…';
+  clearTimeout(memoTimer);
+  memoTimer = setTimeout(() => {
+    saveState();
+    status.textContent = '保存しました';
+    setTimeout(() => { status.textContent = ''; }, 1500);
+  }, 400);
+});
+
+// ----- 費用 -----
+function renderExpenses(){
+  const trip = currentTrip();
+  const cats = ['宿','食事','交通','観光','買物','その他'];
+  const sums = {};
+  cats.forEach(c => sums[c] = 0);
+  let total = 0;
+  (trip.expenses||[]).forEach(e => {
+    sums[e.category] = (sums[e.category]||0) + (e.amount||0);
+    total += (e.amount||0);
+  });
+
+  const sum = document.getElementById('expense-summary');
+  sum.innerHTML = cats.map(c => `
+    <div class="cell">
+      <div class="cat">${c}</div>
+      <div class="amt">${fmtYen(sums[c])}</div>
+    </div>`).join('') + `
+    <div class="cell total" style="grid-column:1/-1">
+      <div class="cat">合計</div>
+      <div class="amt">${fmtYen(total)}</div>
+    </div>`;
+
+  const list = document.getElementById('expense-list');
+  const expenses = [...(trip.expenses||[])].sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  if(expenses.length === 0){
+    list.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);padding:6px 0">まだ支出の記録がありません</div>`;
+    return;
+  }
+  list.innerHTML = expenses.map(e => `
+    <div class="expense-row cat-${e.category}">
+      <div class="date">${e.date ? fmtDate(e.date).slice(5) : '--'}</div>
+      <div><span class="cat-badge">${e.category}</span>${escapeHtml(e.note||'')}</div>
+      <div class="amt">${fmtYen(e.amount)}</div>
+      <button class="del" data-id="${e.id}" title="削除">✕</button>
+    </div>`).join('');
+  list.querySelectorAll('.del').forEach(b => b.addEventListener('click', (ev) => {
+    const id = ev.currentTarget.dataset.id;
+    if(!confirm('この支出を削除しますか？')) return;
+    trip.expenses = trip.expenses.filter(x => x.id !== id);
+    saveState();
+    renderExpenses();
+    renderTripList();
+  }));
+}
+
+// ===== モーダル =====
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('[data-close]').forEach(b => {
+  b.addEventListener('click', () => {
+    b.closest('.modal').classList.remove('show');
+  });
+});
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', (e) => {
+    if(e.target === m) m.classList.remove('show');
+  });
+});
+
+// ----- 旅行の新規作成・編集 -----
+let editingTripId = null;
+document.getElementById('fab').addEventListener('click', () => {
+  editingTripId = null;
+  document.getElementById('modal-trip-title').textContent = '新しい旅';
+  document.getElementById('trip-title').value = '';
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('trip-start').value = today;
+  document.getElementById('trip-end').value = today;
+  openModal('modal-trip');
+});
+
+document.getElementById('btn-edit-trip').addEventListener('click', () => {
+  const trip = currentTrip();
+  if(!trip) return;
+  editingTripId = trip.id;
+  document.getElementById('modal-trip-title').textContent = '旅の情報を編集';
+  document.getElementById('trip-title').value = trip.title || '';
+  document.getElementById('trip-start').value = trip.startDate || '';
+  document.getElementById('trip-end').value = trip.endDate || '';
+  openModal('modal-trip');
+});
+
+document.getElementById('save-trip').addEventListener('click', () => {
+  const title = document.getElementById('trip-title').value.trim();
+  const start = document.getElementById('trip-start').value;
+  const end = document.getElementById('trip-end').value;
+  if(!title){ alert('タイトルを入力してください'); return; }
+  if(editingTripId){
+    const t = state.trips.find(x => x.id === editingTripId);
+    if(t){ t.title = title; t.startDate = start; t.endDate = end; }
+  }else{
+    const trip = {
+      id: uid(), title, startDate: start, endDate: end,
+      places: [], lodgings: [], memo: '', expenses: []
+    };
+    state.trips.push(trip);
+    state.currentTripId = trip.id;
+  }
+  saveState();
+  closeModal('modal-trip');
+  if(state.currentTripId){
+    openTrip(state.currentTripId);
+  }else{
+    renderTripList();
+  }
+});
+
+document.getElementById('btn-delete-trip').addEventListener('click', () => {
+  const trip = currentTrip();
+  if(!trip) return;
+  if(!confirm(`「${trip.title}」を削除します。よろしいですか？\nこの操作は元に戻せません。`)) return;
+  state.trips = state.trips.filter(t => t.id !== trip.id);
+  saveState();
+  state.currentTripId = null;
+  showView('trips');
+  renderTripList();
+});
+
+// ----- ピン追加 -----
+document.getElementById('btn-add-place').addEventListener('click', () => {
+  document.getElementById('place-search').value = '';
+  document.getElementById('place-name').value = '';
+  document.getElementById('place-lat').value = '';
+  document.getElementById('place-lng').value = '';
+  document.getElementById('search-result').style.display = 'none';
+  openModal('modal-place');
+});
+
+let searchTimer = null;
+document.getElementById('place-search').addEventListener('input', (e) => {
+  const q = e.target.value.trim();
+  clearTimeout(searchTimer);
+  const resultBox = document.getElementById('search-result');
+  if(q.length < 2){ resultBox.style.display = 'none'; return; }
+  resultBox.style.display = 'block';
+  resultBox.innerHTML = `<div class="search-loading">検索中…</div>`;
+  searchTimer = setTimeout(async () => {
+    try{
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&accept-language=ja`;
+      const res = await fetch(url, {headers:{'Accept':'application/json'}});
+      const data = await res.json();
+      if(!data.length){
+        resultBox.innerHTML = `<div class="search-loading">見つかりませんでした</div>`;
+        return;
+      }
+      resultBox.innerHTML = data.map(d => `
+        <div class="search-result-item" data-lat="${d.lat}" data-lng="${d.lon}" data-name="${escapeHtml(d.display_name.split(',')[0])}">
+          <div>${escapeHtml(d.display_name.split(',')[0])}</div>
+          <small>${escapeHtml(d.display_name)}</small>
+        </div>`).join('');
+      resultBox.querySelectorAll('.search-result-item').forEach(it => {
+        it.addEventListener('click', () => {
+          document.getElementById('place-name').value = it.dataset.name;
+          document.getElementById('place-lat').value = parseFloat(it.dataset.lat).toFixed(6);
+          document.getElementById('place-lng').value = parseFloat(it.dataset.lng).toFixed(6);
+          resultBox.style.display = 'none';
+        });
+      });
+    }catch(err){
+      resultBox.innerHTML = `<div class="search-loading">検索に失敗しました</div>`;
+    }
+  }, 500);
+});
+
+document.getElementById('save-place').addEventListener('click', () => {
+  const name = document.getElementById('place-name').value.trim();
+  const lat = parseFloat(document.getElementById('place-lat').value);
+  const lng = parseFloat(document.getElementById('place-lng').value);
+  if(!name){ alert('地名を入力してください'); return; }
+  if(isNaN(lat) || isNaN(lng)){ alert('緯度・経度を指定してください'); return; }
+  const trip = currentTrip();
+  if(!trip) return;
+  trip.places = trip.places || [];
+  trip.places.push({id: uid(), name, lat, lng});
+  saveState();
+  closeModal('modal-place');
+  renderMap();
+  renderPlaces();
+});
+
+// ----- 費用追加 -----
+document.getElementById('btn-add-expense').addEventListener('click', () => {
+  const trip = currentTrip();
+  const today = (trip && trip.startDate) ? trip.startDate : new Date().toISOString().slice(0,10);
+  document.getElementById('exp-date').value = today;
+  document.getElementById('exp-category').value = '食事';
+  document.getElementById('exp-note').value = '';
+  document.getElementById('exp-amount').value = '';
+  openModal('modal-expense');
+});
+
+document.getElementById('save-expense').addEventListener('click', () => {
+  const date = document.getElementById('exp-date').value;
+  const category = document.getElementById('exp-category').value;
+  const note = document.getElementById('exp-note').value.trim();
+  const amount = parseInt(document.getElementById('exp-amount').value);
+  if(isNaN(amount) || amount < 0){ alert('金額を正しく入力してください'); return; }
+  const trip = currentTrip();
+  if(!trip) return;
+  trip.expenses = trip.expenses || [];
+  trip.expenses.push({id: uid(), date, category, note, amount});
+  saveState();
+  closeModal('modal-expense');
+  renderExpenses();
+  renderTripList();
+});
+
+// ===== データ管理 =====
+function renderStats(){
+  document.getElementById('stat-trips').textContent = state.trips.length;
+  let p=0,e=0,lg=0;
+  state.trips.forEach(t => {
+    p += (t.places||[]).length;
+    e += (t.expenses||[]).length;
+    lg += (t.lodgings||[]).length;
+  });
+  document.getElementById('stat-places').textContent = p;
+  document.getElementById('stat-lodgings').textContent = lg;
+  document.getElementById('stat-expenses').textContent = e;
+}
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  const json = JSON.stringify({version:1, exportedAt: new Date().toISOString(), trips: state.trips}, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `travel-diary-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btn-import').addEventListener('click', () => {
+  document.getElementById('import-file').click();
+});
+document.getElementById('import-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try{
+      const data = JSON.parse(ev.target.result);
+      if(!Array.isArray(data.trips)) throw new Error('形式が不正です');
+      if(!confirm(`${data.trips.length}件の旅をインポートします。\n現在のデータと統合しますか？\n(OK=統合 / キャンセル=中止)`)) return;
+      data.trips.forEach(t => {
+        // 同じIDがあれば上書き、なければ追加
+        const i = state.trips.findIndex(x => x.id === t.id);
+        if(i >= 0) state.trips[i] = t; else state.trips.push(t);
+      });
+      saveState();
+      renderStats();
+      alert('インポートしました');
+    }catch(err){
+      alert('インポートに失敗しました: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// ===== 起動 =====
+loadState();
+renderTripList();
+</script>
+</body>
+</html>
