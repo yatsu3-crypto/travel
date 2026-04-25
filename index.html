@@ -567,37 +567,38 @@ main{
   <section class="view" id="view-data">
 
     <div class="section">
-      <div class="section-head"><span>GitHub同期</span><span id="github-status" style="font-size:10px;color:var(--ink-soft);font-family:'Courier New',monospace"></span></div>
+      <div class="section-head"><span>iCloudで端末間共有</span></div>
       <div class="section-body">
-        <p style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;line-height:1.8">
-          GitHubのリポジトリに置いたJSONファイルに保存・読込できます。複数端末で同じデータを使うのに便利です。
+        <p style="font-size:13px;color:var(--ink);margin-bottom:14px;line-height:1.9">
+          このアプリのデータは端末ごとに保存されますが、下のエクスポート/インポートを<strong>iCloud Drive</strong>と組み合わせると、iPhoneとPC・iPadでデータを共有できます。
         </p>
-        <div class="field">
-          <label>GitHubユーザー名</label>
-          <input type="text" id="gh-owner" placeholder="例: yatsu3-crypto" autocapitalize="off" autocorrect="off">
+
+        <div style="background:rgba(251,247,236,.7);border:1px solid var(--rule);border-radius:2px;padding:12px 14px;margin-bottom:14px">
+          <div style="font-size:12px;letter-spacing:.2em;color:var(--accent);font-weight:600;margin-bottom:8px">
+            ❶ 端末で保存するとき
+          </div>
+          <p style="font-size:13px;line-height:1.9;margin:0">
+            ① 下の<strong>「JSONをエクスポート」</strong>をタップ<br>
+            ② 共有メニューが開いたら<strong>「ファイル」</strong>を選択<br>
+            ③ 保存先で<strong>「iCloud Drive」</strong>のフォルダを選んで保存
+          </p>
         </div>
-        <div class="field-row">
-          <div class="field"><label>リポジトリ名</label><input type="text" id="gh-repo" placeholder="例: travel-data" autocapitalize="off" autocorrect="off"></div>
-          <div class="field"><label>ブランチ</label><input type="text" id="gh-branch" placeholder="main" autocapitalize="off" autocorrect="off"></div>
+
+        <div style="background:rgba(251,247,236,.7);border:1px solid var(--rule);border-radius:2px;padding:12px 14px;margin-bottom:14px">
+          <div style="font-size:12px;letter-spacing:.2em;color:var(--accent);font-weight:600;margin-bottom:8px">
+            ❷ 別の端末で読み込むとき
+          </div>
+          <p style="font-size:13px;line-height:1.9;margin:0">
+            ① 下の<strong>「JSONをインポート」</strong>をタップ<br>
+            ② ファイル選択画面で<strong>iCloud Drive</strong>を開く<br>
+            ③ 先ほど保存したJSONファイルを選択
+          </p>
         </div>
-        <div class="field">
-          <label>ファイルパス</label>
-          <input type="text" id="gh-path" placeholder="例: data/trips.json" autocapitalize="off" autocorrect="off">
+
+        <div style="background:#fdf3e6;border-left:3px solid var(--accent-soft);padding:10px 12px;margin-bottom:14px;font-size:12px;line-height:1.8;color:var(--ink-soft)">
+          <strong style="color:var(--accent)">💡 おすすめの運用</strong><br>
+          毎回同じファイル名(例: <code style="background:#fff;padding:1px 4px;border-radius:2px">travel-diary.json</code>)で上書き保存すると管理が楽です。インポート時は<strong>現在の端末データに統合</strong>されます(同じ旅IDがあれば上書き)。
         </div>
-        <div class="field">
-          <label>Personal Access Token (repo権限)</label>
-          <input type="password" id="gh-token" placeholder="ghp_... または github_pat_..." autocapitalize="off" autocorrect="off">
-          <p style="font-size:10px;color:var(--ink-soft);margin-top:4px;letter-spacing:.05em">この端末にのみ保存されます。プライベートリポジトリ推奨。</p>
-        </div>
-        <div class="data-actions">
-          <button class="btn btn-full ghost small" id="btn-gh-save-config">設定を保存</button>
-          <button class="btn btn-full accent" id="btn-gh-push">☁ GitHubへ保存(プッシュ)</button>
-          <button class="btn btn-full" id="btn-gh-pull">☁ GitHubから読込(プル)</button>
-        </div>
-        <p style="font-size:10px;color:var(--ink-soft);margin-top:10px;letter-spacing:.05em;line-height:1.7">
-          ※ 設定→Developer settings→Personal access tokens→Fine-grained で<br>
-          　該当リポジトリへのContents:Read and write権限を付与したトークンを使用してください。
-        </p>
       </div>
     </div>
 
@@ -1280,9 +1281,27 @@ function renderStats(){
   document.getElementById('stat-expenses').textContent = e;
 }
 
-document.getElementById('btn-export').addEventListener('click', () => {
+document.getElementById('btn-export').addEventListener('click', async () => {
   const json = JSON.stringify({version:1, exportedAt: new Date().toISOString(), trips: state.trips}, null, 2);
+  const filename = `travel-diary.json`;
   const blob = new Blob([json], {type:'application/json'});
+
+  // iPhone/iPad Safari: Web Share APIで共有シート(iCloud Drive保存可)
+  try{
+    if(navigator.canShare){
+      const file = new File([blob], filename, {type:'application/json'});
+      if(navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], title:'旅日記データ'});
+        return;
+      }
+    }
+  }catch(e){
+    // ユーザーがキャンセルした場合などは何もしない
+    if(e.name === 'AbortError') return;
+    // それ以外はフォールバックへ
+  }
+
+  // フォールバック: ダウンロード(PC等)
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1319,177 +1338,9 @@ document.getElementById('import-file').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
-// ===== GitHub同期 =====
-const GH_CONFIG_KEY = 'travelDiaryGhConfig_v1';
-
-function loadGhConfig(){
-  try{
-    const raw = localStorage.getItem(GH_CONFIG_KEY);
-    if(!raw) return null;
-    return JSON.parse(raw);
-  }catch(e){ return null; }
-}
-
-function saveGhConfig(cfg){
-  localStorage.setItem(GH_CONFIG_KEY, JSON.stringify(cfg));
-}
-
-function applyGhConfigToForm(){
-  const cfg = loadGhConfig() || {};
-  document.getElementById('gh-owner').value = cfg.owner || '';
-  document.getElementById('gh-repo').value = cfg.repo || '';
-  document.getElementById('gh-branch').value = cfg.branch || 'main';
-  document.getElementById('gh-path').value = cfg.path || 'travel-data.json';
-  document.getElementById('gh-token').value = cfg.token || '';
-}
-
-function readGhFormToConfig(){
-  const cfg = {
-    owner: document.getElementById('gh-owner').value.trim(),
-    repo: document.getElementById('gh-repo').value.trim(),
-    branch: document.getElementById('gh-branch').value.trim() || 'main',
-    path: document.getElementById('gh-path').value.trim(),
-    token: document.getElementById('gh-token').value.trim()
-  };
-  return cfg;
-}
-
-function ghStatus(msg, isError){
-  const el = document.getElementById('github-status');
-  el.textContent = msg || '';
-  el.style.color = isError ? '#8a3b2f' : 'var(--ink-soft)';
-}
-
-function validateGhConfig(cfg){
-  if(!cfg.owner) return 'ユーザー名を入力してください';
-  if(!cfg.repo) return 'リポジトリ名を入力してください';
-  if(!cfg.path) return 'ファイルパスを入力してください';
-  if(!cfg.token) return 'Personal Access Tokenを入力してください';
-  return null;
-}
-
-// Base64エンコード(UTF-8対応)
-function utf8ToBase64(str){
-  return btoa(unescape(encodeURIComponent(str)));
-}
-function base64ToUtf8(b64){
-  return decodeURIComponent(escape(atob(b64.replace(/\s/g, ''))));
-}
-
-document.getElementById('btn-gh-save-config').addEventListener('click', () => {
-  const cfg = readGhFormToConfig();
-  saveGhConfig(cfg);
-  ghStatus('設定を保存しました');
-  setTimeout(() => ghStatus(''), 2000);
-});
-
-// プッシュ: ローカル → GitHub
-document.getElementById('btn-gh-push').addEventListener('click', async () => {
-  const cfg = readGhFormToConfig();
-  saveGhConfig(cfg);
-  const err = validateGhConfig(cfg);
-  if(err){ alert(err); return; }
-  if(!confirm('現在のローカルデータをGitHubに保存(上書き)します。\nよろしいですか？')) return;
-
-  ghStatus('保存中…');
-  try{
-    const apiUrl = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${encodeURIComponent(cfg.path).replace(/%2F/g,'/')}`;
-    const headers = {
-      'Authorization': `Bearer ${cfg.token}`,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    };
-
-    // 既存ファイルのSHAを取得(なければ新規作成扱い)
-    let existingSha = null;
-    try{
-      const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(cfg.branch)}`, {headers});
-      if(getRes.ok){
-        const getJson = await getRes.json();
-        existingSha = getJson.sha;
-      }else if(getRes.status !== 404){
-        throw new Error(`既存ファイル取得エラー: ${getRes.status}`);
-      }
-    }catch(e){
-      if(!String(e).includes('404')) throw e;
-    }
-
-    const payload = JSON.stringify({
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      trips: state.trips
-    }, null, 2);
-    const body = {
-      message: `Update travel data: ${new Date().toISOString()}`,
-      content: utf8ToBase64(payload),
-      branch: cfg.branch
-    };
-    if(existingSha) body.sha = existingSha;
-
-    const putRes = await fetch(apiUrl, {
-      method: 'PUT',
-      headers: {...headers, 'Content-Type': 'application/json'},
-      body: JSON.stringify(body)
-    });
-    if(!putRes.ok){
-      const errJson = await putRes.json().catch(() => ({}));
-      throw new Error(`${putRes.status}: ${errJson.message || putRes.statusText}`);
-    }
-    ghStatus(`保存完了 (${new Date().toLocaleTimeString('ja-JP')})`);
-  }catch(e){
-    ghStatus('保存失敗', true);
-    alert('GitHubへの保存に失敗しました\n\n' + e.message);
-  }
-});
-
-// プル: GitHub → ローカル
-document.getElementById('btn-gh-pull').addEventListener('click', async () => {
-  const cfg = readGhFormToConfig();
-  saveGhConfig(cfg);
-  const err = validateGhConfig(cfg);
-  if(err){ alert(err); return; }
-  if(!confirm('GitHubからデータを読み込みます。\n現在のローカルデータは上書きされます。\nよろしいですか？\n\n(事前にエクスポートでバックアップを推奨)')) return;
-
-  ghStatus('読込中…');
-  try{
-    const apiUrl = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${encodeURIComponent(cfg.path).replace(/%2F/g,'/')}?ref=${encodeURIComponent(cfg.branch)}`;
-    const headers = {
-      'Authorization': `Bearer ${cfg.token}`,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    };
-    const res = await fetch(apiUrl, {headers});
-    if(!res.ok){
-      if(res.status === 404) throw new Error('ファイルが見つかりません。先にプッシュしてください。');
-      const errJson = await res.json().catch(() => ({}));
-      throw new Error(`${res.status}: ${errJson.message || res.statusText}`);
-    }
-    const json = await res.json();
-    const decoded = base64ToUtf8(json.content);
-    const data = JSON.parse(decoded);
-    if(!Array.isArray(data.trips)) throw new Error('JSONの形式が不正です');
-
-    state.trips = data.trips;
-    state.currentTripId = null;
-    saveState();
-    ghStatus(`読込完了 (${data.trips.length}件)`);
-    renderStats();
-    alert(`${data.trips.length}件の旅を読み込みました`);
-  }catch(e){
-    ghStatus('読込失敗', true);
-    alert('GitHubからの読込に失敗しました\n\n' + e.message);
-  }
-});
-
-// 設定タブを開いたときフォームに値をロード
-document.querySelector('nav.tabs button[data-tab="data"]').addEventListener('click', () => {
-  applyGhConfigToForm();
-});
-
 // ===== 起動 =====
 loadState();
 renderTripList();
-applyGhConfigToForm();
 </script>
 </body>
 </html>
